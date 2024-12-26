@@ -20,9 +20,7 @@ class UnifiedDataIngestion:
         self.logger = logging.getLogger(__name__)
     
     def ingest_github(self, repo_url: str) -> str:
-        """Ingest a GitHub repository and return formatted text."""
         try:
-            # Extract owner and repo name from URL
             parts = repo_url.rstrip('/').split('/')
             owner, repo_name = parts[-2], parts[-1]
             
@@ -33,38 +31,46 @@ class UnifiedDataIngestion:
             
             repo = g.get_repo(f"{owner}/{repo_name}")
             
-            # Get repository information
             content_parts = [
                 f"Repository: {repo.full_name}",
                 f"Description: {repo.description}",
                 f"Main Language: {repo.language}",
+                f"Stars: {repo.stargazers_count}",
                 "Contents:\n"
             ]
             
-            # Get file contents recursively
             def process_contents(contents, path=""):
                 text_content = []
-                for content in contents:
-                    if content.type == "file":
-                        if content.name.endswith(('.md', '.txt', '.py', '.js', '.java', '.cpp', '.h', '.c', '.json', '.yaml', '.yml')):
+                if isinstance(contents, list):
+                    for content in contents:
+                        if content.type == "file":
                             try:
                                 file_content = content.decoded_content.decode('utf-8')
                                 text_content.append(f"\nFile: {path + content.name}\n{file_content}")
                             except:
                                 self.logger.warning(f"Could not decode {content.name}")
-                    elif content.type == "dir":
-                        text_content.extend(process_contents(content.get_contents(), path + content.name + "/"))
+                        elif content.type == "dir":
+                            try:
+                                sub_contents = repo.get_contents(content.path)
+                                text_content.extend(process_contents(sub_contents, path + content.name + "/"))
+                            except:
+                                self.logger.warning(f"Could not access directory {content.path}")
+                else:
+                    try:
+                        file_content = contents.decoded_content.decode('utf-8')
+                        text_content.append(f"\nFile: {path}\n{file_content}")
+                    except:
+                        self.logger.warning(f"Could not decode {path}")
                 return text_content
             
             content_parts.extend(process_contents(repo.get_contents("")))
-            
             return "\n".join(content_parts)
+            
         except Exception as e:
             self.logger.error(f"Error ingesting GitHub repository: {e}")
             raise
     
     def ingest_url(self, url: str) -> str:
-        """Ingest web content and return formatted text."""
         try:
             if "github.com" in url:
                 return self.ingest_github(url)
@@ -74,14 +80,10 @@ class UnifiedDataIngestion:
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Remove script and style elements
             for script in soup(["script", "style"]):
                 script.decompose()
                 
-            # Extract text
             text = soup.get_text(separator='\n', strip=True)
-            
-            # Clean up text
             lines = [line.strip() for line in text.split('\n') if line.strip()]
             cleaned_text = '\n'.join(lines)
             
@@ -91,7 +93,6 @@ class UnifiedDataIngestion:
             raise
     
     def ingest_file(self, file_path: Union[str, Path]) -> str:
-        """Ingest local file and return formatted text."""
         try:
             file_path = Path(file_path)
             
@@ -108,6 +109,17 @@ class UnifiedDataIngestion:
                 with open(file_path) as f:
                     data = json.load(f)
                 return f"JSON File: {file_path.name}\n{json.dumps(data, indent=2)}"
+            elif file_path.suffix == '.pdf':
+                try:
+                    import PyPDF2
+                    with open(file_path, 'rb') as f:
+                        reader = PyPDF2.PdfReader(f)
+                        text = []
+                        for page in reader.pages:
+                            text.append(page.extract_text())
+                        return f"PDF File: {file_path.name}\n{'\n'.join(text)}"
+                except ImportError:
+                    raise ImportError("Please install PyPDF2: pip install PyPDF2")
             elif file_path.suffix == '.docx':
                 try:
                     import docx
@@ -119,7 +131,7 @@ class UnifiedDataIngestion:
                 except ImportError:
                     raise ImportError("Please install python-docx: pip install python-docx")
             else:
-                with open(file_path) as f:
+                with open(file_path, encoding='utf-8') as f:
                     content = f.read()
                 return f"File: {file_path.name}\n{content}"
         except Exception as e:
@@ -127,7 +139,6 @@ class UnifiedDataIngestion:
             raise
     
     def ingest_database(self, connection_string: str, query: str) -> str:
-        """Ingest database content and return formatted text."""
         try:
             engine = create_engine(connection_string)
             df = pd.read_sql_query(query, engine)
@@ -135,22 +146,3 @@ class UnifiedDataIngestion:
         except Exception as e:
             self.logger.error(f"Error ingesting database: {e}")
             raise
-
-# Usage example:
-if __name__ == "__main__":
-    ingester = UnifiedDataIngestion(github_token="your_github_token")  # Token is optional
-    
-    # Ingest from GitHub
-    github_text = ingester.ingest_github("https://github.com/username/repo")
-    
-    # Ingest from web
-    web_text = ingester.ingest_url("https://example.com")
-    
-    # Ingest local file
-    file_text = ingester.ingest_file("data.csv")
-    
-    # Ingest from database
-    db_text = ingester.ingest_database(
-        "postgresql://user:password@localhost:5432/db",
-        "SELECT * FROM table"
-    )

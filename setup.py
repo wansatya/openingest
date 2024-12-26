@@ -13,6 +13,7 @@ setup(
         "PyGithub",
         "sqlalchemy",
         "python-docx",
+        "PyPDF2",
     ],
     entry_points={
         "console_scripts": [

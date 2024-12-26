@@ -108,6 +108,16 @@ class UnifiedDataIngestion:
                 with open(file_path) as f:
                     data = json.load(f)
                 return f"JSON File: {file_path.name}\n{json.dumps(data, indent=2)}"
+            elif file_path.suffix == '.docx':
+                try:
+                    import docx
+                    doc = docx.Document(file_path)
+                    full_text = []
+                    for para in doc.paragraphs:
+                        full_text.append(para.text)
+                    return f"DOCX File: {file_path.name}\n{'\n'.join(full_text)}"
+                except ImportError:
+                    raise ImportError("Please install python-docx: pip install python-docx")
             else:
                 with open(file_path) as f:
                     content = f.read()

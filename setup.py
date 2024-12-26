@@ -12,6 +12,7 @@ setup(
         "beautifulsoup4",
         "PyGithub",
         "sqlalchemy",
+        "python-docx",
     ],
     entry_points={
         "console_scripts": [

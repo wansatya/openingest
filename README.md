@@ -28,8 +28,8 @@ openingest --help
 openingest -v
 
 # GitHub repositories
-openingest git https://github.com/user/repo --token <GITHUB_TOKEN> --output data.txt
-openingest git --help  # Show git command help
+openingest github https://github.com/user/repo --token <GITHUB_TOKEN> --output data.txt
+openingest github --help  # Show github command help
 
 # Web content
 openingest web https://example.com --output web_data.txt
